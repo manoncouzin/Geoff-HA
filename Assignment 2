@@ -1,0 +1,178 @@
+###########################################################
+#                                                         #
+#                 Creating a good data                    #
+#                                                         #
+###########################################################
+#https://rdrr.io/cran/smacof/man/wish.html
+
+
+#Multidimensional scalling
+#we map differences between points, greater distance = greater variance
+#about distimces and no about correlations
+#clear workspace :
+graphics.off()
+rm(list=ls(all=TRUE))
+
+#set working directory
+setwd("~/Desktop/R work")
+
+#load packages
+require(lsr)
+require(psych)
+require(sciplot)
+require(stats)
+require(ape)
+source("GraphPlots.R")
+
+#load data file
+nations <- read.delim("~/Desktop/R work/nations.txt")
+View(nations)
+#applying non metric multidimensional scalling #JUDGEMENTS OF WWII
+
+#compute descriptive statistics
+who(TRUE) #12 numeric variables 
+summary(nations) #no missing data
+describe(nations) #all the results looks normal 
+
+# Nonmetric MDS
+# N rows (objects) x p columns (variables)
+# each row identified by a unique row name
+
+
+###########################################################
+#                                                         #
+#                 Changing the data                       #
+#                                                         #
+###########################################################
+
+#MATRIX
+require(MVA)
+require(MASS)
+matrix <- as.matrix(nations) #create a matrix
+#DISTUMCES
+nations.dist <- dist(matrix, method="euclidean") #calcul the distumces 
+nations.dist
+#MDS
+nations.iso <- isoMDS(nations.dist) #use that to know stress and how many k you use
+nations.iso
+#lower stress is better
+#MDS
+nations_mds <- cmdscale(nations.dist, k = 9, eig = TRUE)
+nations_mds$points
+
+(lam <- nations_mds$eig)
+cumsum(abs(lam)) / sum(abs(lam))
+cumsum(lam^2) / sum(lam^2)
+
+###########################################################
+#                                                         #
+#                 Lookind for similarities                #
+#                                                         #
+###########################################################
+#Book way of having a two dimentional plot to see the distances between country
+x = nations.iso$points[,1] #mds = multidimentional scalling
+y = nations.iso$points[,2]
+
+lim <-  range(x * (-1)) *1.2
+plot(x, y,
+     type = "n",xlab = "coordinate 1", ylab = "coordinate 2", main = "similarities", 
+     xlim=range(x)*1.2)
+text(x, y, labels = colnames(nations), cex = 0.7)
+
+###########################################################
+#                                                         #
+#      Changing similarities in dissimilarities           #
+#                                                         #
+###########################################################
+## Change similarities is dissimilarities 
+library(smacof)
+nationsD.dist <- sim2diss(nations, method= max(nations))
+nationsD.dist #COPY THE TABLE
+
+#Book way of aving a two dimentional plot to see the distances between dissimilarities country
+nationsD_mds <- cmdscale(nationsD.dist, k = 9, eig = TRUE)
+nationsD_mds$points
+nationsD_mds
+
+nationsD.iso <- isoMDS(nationsD.dist) 
+nationsD.iso
+
+###########################################################
+#                                                         #
+#              Looking for dissimilarities                #
+#                                                         #
+###########################################################
+
+
+x2 = nationsD.iso$points[,1]
+y2 = nationsD.iso$points[,2]
+lim2 <-  range(x2 * (-1)) *1.2
+plot(x2 * (-1), y2 * (-1), 
+     type="n", xlab = "Coordinate 1", ylab = "Coordinate 2",
+     xlim = lim2, ylim = lim2)
+text(x2 * (-1), y2 * (-1), labels = colnames(nations), cex = 0.7)
+
+#http://cc.oulu.fi/~jarioksa/softhelp/vegan/html/goodness.metaMDS.html
+#http://cc.oulu.fi/~jarioksa/softhelp/vegan/html/metaMDS.html
+
+
+###########################################################
+#                                                         #
+#                 Shepard Plots                           #
+#                                                         #
+###########################################################
+#####Creating Shepard Plot
+library(rysgran)
+library(MASS)
+library(vegan)
+
+
+#google 
+mod2 <- metaMDS(nationsD.dist)
+stressplot(mod2, main = "Shepard test for dissimilarities distances")
+
+#class
+nations_sh <- Shepard(nationsD.dist[lower.tri(nationsD.dist)], nationsD.iso$points)
+nations_sh
+plot(nations_sh, pch=".", cex=4, 
+     xlab = "dissimilarity", ylab="distance",
+     xlim=range(nations_sh$x, na.rm = TRUE, ylim = range(nations_sh$x,na.rm = TRUE)))
+lines(nations_sh$x, nations_sh$yf, type = "S")
+
+#R help
+#matrix <- as.matrix(nations[, -1])
+#nations.dist <- dist(matrix)
+#nations.mds <- isoMDS(nations.dist)
+plot(nationsD.iso$points, type = "n")
+text(nationsD.iso$points, labels = as.character(1:nrow(matrix)))
+nations.sh <- Shepard(nations.dist, nations.mds$points)
+plot(nations.sh, pch = ".")
+lines(nations.sh$x, nations.sh$yf, type = "S")
+
+
+###########################################################
+#                                                         #
+#                       Try more                          #
+#                                                         #
+###########################################################
+#A Shepard diagram is one way of assessing if the t-SNEW produced an accurate visualization. It is a scatterplot of distances between data points. On the x-axis we plot the original distances. On the y-axis we plot the distances output by a dimension reduction algorithm. Below I show a Shepard diagram for t-SNE applied the map of European cities.
+
+#The scatter plot shows a rough correlation in that cities closer together in input space tend to be closer together in output space. However, by hovering over the points we can see that, for example, Brussels and Hamburg are too far apart. The fact that the Spearman’s rank correlation is only 78% shows that the ordering of the distances is wrong in some cases.
+
+#pretty but unnecessary
+ordiplot(mod1, type="text")
+data.envfit <- envfit(mod1,nations[,-1])
+plot(data.envfit)
+
+#http://www.flutterbys.com.au/stats/tut/tut15.1.html
+
+#3D PLOT
+library(igraph)
+graphEdges <- graph.full(nrow(nations[,1:12]))
+V(graphEdges)$labels <- nations[,1]
+#dissiminarities
+layout <- layout.mds(graphEdges, dist = as.matrix(nationsD))
+plot(graphEdges, layout = layout, vertex.size = 3)
+#simmilarities
+layout2 <- layout.mds(graphEdges, dist = as.matrix(nations))
+plot(graphEdges, layout = layout2, vertex.size = 3)
