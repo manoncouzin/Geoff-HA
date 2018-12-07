@@ -1,0 +1,171 @@
+###########################################################
+#                                                         #
+#                     CREATE DATA                         #
+#                                                         #
+###########################################################
+
+#clear workspace and clears the graphics
+graphics.off()
+rm(list=ls(all=TRUE))
+
+#set working directory
+setwd("~/Desktop/R work")
+
+#load packages
+require(lsr)
+require(psych)
+require(sciplot)
+require(car)
+require(effects)
+source("GraphPlots.R")
+
+#CREATING A POPULATION
+#created groups in a normal distribution
+v1 = rnorm(n = 50, mean = -.5, sd = 1) # generate the data  of group 1
+v2 = rnorm(n = 50, mean = 0, sd = 1) # generate the data  of group 2
+v3 = rnorm(n = 50, mean = 0, sd = 1) # generate the data  of group 3
+v4 = rnorm(n = 50, mean = .5, sd = 1) # generate the data  of group 3
+
+# repartir les v dans differents groupes
+grp1= c(rep(1,50)) 
+grp2= c(rep(2,50)) 
+grp3= c(rep(3,50)) 
+grp4= c(rep(4,50)) 
+group=c(grp1,grp2,grp3,grp4) # make a single vector of groups
+
+means=c(v1,v2,v3,v4) # make a single vector of the data (measurements)
+mydata=cbind(group,means) # column bind to create a matrix (combine deux vector in one signle matrix)
+mydata=as.data.frame(mydata) # convert to a data frame
+mydata$group = as.factor(mydata$group) # convert groups to a factor
+describeBy(mydata$means,mydata$group) #some descriptive stats
+
+leveneTest(means~group, data = mydata) #LEvene's Test for homogeneity of variables 
+
+my.anova=aov( formula = means ~ group, data = mydata ) #do one way anova, la vague veux dire follow
+summary(my.anova)
+
+leveneTest(my.anova) #Levene's Test with anova model
+etaSquared(my.anova) #effect size with anova model
+tukey=TukeyHSD(my.anova) #post hoc Turkey HSD
+
+plot(tukey)
+plot(my.anova)
+
+
+###########################################################
+#                                                         #
+#                     FIRST PART                          #
+#                                                         #
+###########################################################
+
+#4 groups in a one way fixed effects analysis of variance (ANOVA) design
+#H1 = there is a difference between the population means
+#H0 = the 4 groups have equal populations means
+#means = [-.5, 0, 0, .5]
+#sd = 1
+#0means = 0.35
+#Cohen's f = 0.35
+
+#How many participants we need to find a statistically significant effect 50-90% of the time
+#the population follow a normal curve
+#the population have equal variance
+#all scores are independent of each other 
+#participants are drawn randomly from each population 
+
+#We want to simulate the study 100 times for each group size n, and for each group size keep a count of the number of times p < 0.05
+
+library(MonteCarlo)
+test_func<-function(n,loc,scale)
+{
+  sample<-rnorm(50, 0.35, 1)
+  stat<-sqrt(n)*mean(sample)/sd(sample)
+  decision<-abs(stat)>1.96
+  list("decision"=decision, "stat"=stat)}
+
+n_grid<-c(10,20,30,40,50)
+loc_grid<-c(0.35,0.35)
+scale_grid<-c(1)
+
+param_list=list("n"=n_grid, "loc"=loc_grid, "scale"=scale_grid)
+erg<-MonteCarlo(func=test_func, nrep=100, param_list=param_list, ncpus=1)
+df<-MakeFrame(erg)
+head(df)
+require(dplyr)
+require(ggplot2)
+
+tbl <- tbl_df(df)
+tbl
+ggplot(filter(tbl, loc==0)) + geom_density(aes(x=stat, col=factor(n)))
+#MakeTable
+rows<-c("n")
+cols<-c("loc","scale")
+MakeTable(output=erg, rows=rows, cols=cols, digits=2)
+
+#MonteCarlo
+summary(erg)
+
+###########################################################
+#                                                         #
+#                       SECOND PART                       #
+#                                                         #
+###########################################################
+
+#Try to calculate the power using non central F distribution
+#First, calculate the noncentrality coefficiennt lambda = N*f^2
+#N = total sample size 
+#f = cohen's f 
+#Then calcul the numerator of degrees of freedom = Ngroups - 1
+#calcul the denominator degrees of freedom = Nparticipants - Ngroups
+#Then, find the critical values F(Fcrit)
+#?qf
+#Finally, calcul the power for group size of n=10 to 50 using the formula : 
+#power = noncentralFtail(fcrit(df1,df2),df1,df2,lamba)
+#?pf
+
+
+
+n <- seq (from = 10, to = 50, by = 1)
+for(p in 1:length(n))
+{
+  #for(i in 1:100)
+  #{
+    x1=rnorm(n=n[p],mean=0.35, sd=1)
+    t=t.test(x1,paired=FALSE)
+    power <- pwr.t.test(n=n[p], d=.35, sig.level=.05, power=NULL, alternative ="greater", type= "one.sample")
+    if(n[p]<50){print(power)}
+    if(t$p.value<.05){print(n[p])}
+#  }
+}
+
+df1 = 3
+df2 = 116
+
+qf(, 3, 116) 
+#0.1169572
+pf(.05, 3, 116) 
+#0.01485239
+
+pf(q, df1, df2, ncp, lower.tail = TRUE, log.p = FALSE)
+qf(p, df1, df2, lower.tail = TRUE, log.p = FALSE)
+
+
+###########################################################
+#                                                         #
+#                      THIRD PART                         #
+#                                                         #
+###########################################################
+
+require(pwr)
+#create a plot of the number of successses (as obtain by simulation) for each group sample n size
+#and power for each group sample size n as calculated using the noncentral F distribution 
+
+#how many participants do you need for 70% and 90%?
+pwr.t.test(n=NULL, d=.35, sig.level=.05, power=.7, alternative ="two.sided", type= "one.sample")
+pwr.anova.test(k=4,f=.35,sig.level=.05,power=.9)
+pwr.anova.test(k=4,f=.35,sig.level=.05,power=.7)
+
+pwr.t.test(n=NULL, d=.35, sig.level=.05, power=.9, alternative ="two.sided", type= "one.sample")###########################################################
+#                                                         #
+#                        OTHER                            #
+#                                                         #
+###########################################################
