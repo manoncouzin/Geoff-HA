@@ -1,0 +1,138 @@
+#clear workspace and clears the graphics
+graphics.off()
+rm(list=ls(all=TRUE))
+
+#set working directory
+setwd("~/Desktop/R work")
+
+#load packages
+require(lsr)
+require(psych)
+require(sciplot)
+require(FactorMineR)
+require(factoextra)
+source("GraphPlots.R")
+
+#load data file
+#import data set pour avoir le tableau
+
+#show a summary of object in the environement, what is you data, what it looks like etc
+who(TRUE)
+
+#compute descriptive statistics 
+summary(PAQ_Couzin)
+
+#300 participants, 9 questions, 5 dimensions
+#EXEMPLE OF THE BOOK
+#we want to standardize the results for the examinations before calculating the average attempting to combine them 
+#we need to spread the students out further to obtain a better ranking 
+#so student score will be the first principal component to provide a measure of examination success that maximally descriminated between them
+
+#HOW TO DO IT
+#First principal component = linear combination of the original variables whose sample variace is greatest amongst all possible such linear combination
+#-> y1 = a11x1 + a12x2 + ... + a1qxq
+#-> need to choose the elements of the vector a1 so as to maximise the variance of y1
+#Second principal component = linear combination of the original variables that accounts for a maximal proportion of the remaining variance subject to being uncorrelated with the first principal component
+#-> y2 = a21x1 + a22x2 + ... + a2qxq
+#ai1 is most of the time choose to be positive
+
+#m = principal component
+#S = covariance matrix
+#i = individual score
+#q * 1 = vector of variables values
+#xi = variables values 
+
+#Calculating principal components scores with R
+#R>plot(blood_pcacor$sdev^2,xlab = "component number", ylab = "component variance", type = "1", main = "Scree diagram")
+#R>plot(log(blood_pcacor$sdev^2), xlab = "component number", ylab = "log(Component variance)", type = "1", main = "Log(eigenvalue)diagram")
+
+
+
+#copy the data and keep only the questions as variables 
+PAQ_Couzin1 <- PAQ_Couzin[4:12]
+
+#USE SEMINAR 6 AND COMBINE EVERYTHING
+plot(PAQ_Couzin1)
+#correlation matrix, 
+round(cor(PAQ_Couzin1),2)
+#High correlation : 
+#Q1 & Q3 = 0.84
+#Q1 & Q4 = 0.76
+#Q2 & 5 = 0.63 
+#Q2 & Q7 = 0.57
+#Q3 & 4 = 0.73
+#Q5 & 7 = 0.51
+#Q6 & 8 = 0.51
+#Q8 & 1 = 0.52
+#Q9 & 6 = 0.47
+
+#1 -> 3 -> 4
+#2 -> 5 -> 7 
+#6 -> 8 -> 9
+
+who(TRUE) #what format is the data in, how many variables are there?
+summary(PAQ_Couzin1) #is there any missing data (NA)?
+describe(PAQ_Couzin1) #what are the means, madians, trimmed mens etc?
+#we dont have any missing data, and all the results looks good and logic, donc need to remove anything
+#some people put almost 0 all the time, should we remove them? like 46 and 28 and 63 put 4 everywhere
+
+#looking for the principal component
+PAQ_Couzin1_pca <- prcomp(PAQ_Couzin1,scale = TRUE)
+print(PAQ_Couzin1_pca)
+#summary method can be used for further inspection of the details 
+summary(PAQ_Couzin1_pca)
+
+#the linea combination for the first principal component is 2
+#loadings for the first component, the most important even is Q1, 3, 4
+a1 <- PAQ_Couzin1_pca$rotation[,1]
+a1
+
+#we see that Q1 & Q3 receive the highest weight but Q9 result is less important
+#for computing the first principal component, the data need to be rescaled appropriately 
+#the center and the scalling used by prcomp internally can be extacted from PAQ_Couzin_pca 
+center <- PAQ_Couzin1_pca$center
+scale <- PAQ_Couzin1_pca$scale
+#now we can apply the scale function to the data and multiply it with the loadings matrix in order to compute the first principal component score for each person
+hm <- as.matrix(PAQ_Couzin1)
+drop(scale(hm, center = center, scale = scale) %*% PAQ_Couzin1_pca$rotation[,1])
+#or more conviniently, by extracting the first from all pre computed principal components 
+#DIAGRAM DES COMPONENT, use one or the other 
+plot(pca$sdev^2, xlab = "component number", ylab = "component variances", type = "l", main = "diagram")
+predict(PAQ_Couzin1_pca)[,1]
+plot(PAQ_Couzin1_pca) #barplot of the variances explained by the principal components
+
+#the correlation between the score given to each person by standard scoring system used for the PAQ_Couzin and the first principal component score 
+cor(PAQ_Couzin1, PAQ_Couzin1_pca$x[,1]) #one number for each question for the first component
+#scatterplot of the score and the first principal component
+plot(PAQ_Couzin1, PAQ_Couzin1_pca$x[,1]) #don't have the same as them 
+
+
+
+#sample size for principal component analysis
+biplot(PAQ_Couzin1_pca, col = c ("grey", "black")) 
+#1,3,4,8
+#6
+#9,7,2,5
+
+#6 on the axix 
+
+
+
+####################################################################
+
+#SEMINAR 6, EXERCICE 8
+pca <-  prcomp(PAQ_Couzin1, scale = TRUE)
+summary(pca)
+print(pca) 
+
+pca <- princomp(PAQ_Couzin1, cor = TRUE)
+summary(pca, loading = TRUE) #when there is nothing = very low numbers
+#signe are arbitrary, we dont care
+
+plot(pca$scores[,1])
+barplot(pca$scores[,1])
+
+#looking the data from another perspectives, the components using need to be the one which describe more the data
+biplot(pca,col = c("black","grey"))
+
+
